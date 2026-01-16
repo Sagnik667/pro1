@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Online Meeting Scheduler</title>
+</head>
+
+<body class="light">
+<audio id="notifySound">
+  <source src="https://actions.google.com/sounds/v1/alarms/beep_short.ogg" type="audio/ogg">
+</audio>
+
+<header class="topbar">
+  <div class="profile" title="Settings" onclick="showPage('settings')">👤</div>
+
+  <nav>
+    <a onclick="showPage('home')">Home</a>
+    <a onclick="showPage('past')">Past Meetings</a>
+    <a onclick="showPage('calendar')">Calendar View</a>
+  </nav>
+
+  <div class="theme-toggle" onclick="toggleTheme()">
+    <span class="icon sun">☀️</span>
+    <div class="toggle-track">
+      <div class="toggle-thumb"></div>
+    </div>
+    <span class="icon moon">🌙</span>
+  </div>
+</header>
+
+<!-- HOME -->
+<section id="home" class="page active">
+  <h2>Upcoming Meetings</h2>
+
+  <div class="controls">
+    <input id="searchInput" placeholder="Search by title or date" />
+    <select id="filterPriority">
+      <option value="any">All priorities</option>
+      <option value="High">High</option>
+      <option value="Medium">Medium</option>
+      <option value="Low">Low</option>
+    </select>
+    <button class="small-btn" onclick="openModal()">+ New</button>
+  </div>
+
+  <div class="grid" id="upcomingGrid"></div>
+
+  <h3 style="margin-top:28px">All Scheduled</h3>
+  <div class="grid" id="allGrid"></div>
+
+  <button class="fab" onclick="openModal()">＋</button>
+</section>
+
+<!-- PAST -->
+<section id="past" class="page">
+  <h2>Past Meetings</h2>
+
+  <div class="past-info">
+    Past meetings from the <strong>last 7 days</strong> are shown here.
+  </div>
+
+  <div class="grid muted" id="pastGrid"></div>
+</section>
+
+
+<!-- CALENDAR -->
+<section id="calendar" class="page">
+  <h2>Calendar View</h2>
+
+  <div class="calendar-header">
+    <button onclick="prevMonth()">◀</button>
+    <div id="monthYear"></div>
+    <button onclick="nextMonth()">▶</button>
+  </div>
+
+  <div class="calendar-grid days-of-week">
+    <div class="day">Sun</div><div class="day">Mon</div><div class="day">Tue</div>
+    <div class="day">Wed</div><div class="day">Thu</div><div class="day">Fri</div>
+    <div class="day">Sat</div>
+  </div>
+
+  <div id="calendarDays" class="calendar-grid"></div>
+  <div id="dateMeetings" class="date-meetings"></div>
+</section>
+
+<!-- DAY MODAL -->
+<div id="dayModal" class="modal" aria-hidden="true">
+  <div class="modal-content day-modal">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <h3 id="dayModalTitle">Day</h3>
+      <button class="small-btn" onclick="closeDayModal()">Close</button>
+    </div>
+    <div id="dayMeetingList"></div>
+    <div style="display:flex;justify-content:flex-end;margin-top:12px;">
+      <button class="small-btn" onclick="openModal()">+ New Meeting</button>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<section id="settings" class="page">
+  <h2>Settings</h2>
+
+  <div class="settings-box">
+    <h3>Notifications</h3>
+    <div class="settings-row checkbox-row">
+      <input id="notifToggle" type="checkbox" checked onchange="toggleNotifications(this)">
+      <span>Enable Notifications</span>
+    </div>
+
+    <label class="settings-row">
+      Default Alarm Sound
+      <select id="alarmSelect" onchange="changeAlarm(this)">
+        <option value="default">Default Beep</option>
+        <option value="soft">Soft Alarm</option>
+        <option value="long">Long Alarm</option>
+      </select>
+    </label>
+  </div>
+
+  <div class="settings-box">
+    <h3>Default Meeting Link</h3>
+    <input id="defaultLink" placeholder="https://meet.google.com/new" />
+  </div>
+</section>
+
+<!-- MAIN MODAL -->
+<div id="modal" class="modal" aria-hidden="true">
+  <div class="modal-content">
+    <h3 id="modalTitle">Schedule Meeting</h3>
+
+    <input id="title" placeholder="Title" />
+    <div style="display:flex;gap:10px;">
+      <input id="date" type="date" />
+      <input id="start" type="time" />
+      <input id="end" type="time" />
+    </div>
+
+    <select id="type">
+      <option>Online</option>
+      <option>Offline</option>
+    </select>
+
+    <select id="importance" onchange="updateImportanceTint(this)">
+      <option value="Low">Low Importance</option>
+      <option value="Medium" selected>Moderate Importance</option>
+      <option value="High">High Importance</option>
+    </select>
+
+    <input id="link" placeholder="Meeting Link (optional)" />
+
+    <div style="display:flex;gap:10px;">
+      <select id="reminder">
+        <option value="0">At time</option>
+        <option value="5">5 min before</option>
+        <option value="10" selected>10 min before</option>
+        <option value="30">30 min before</option>
+        <option value="60">1 hour before</option>
+      </select>
+
+      <select id="recurrence">
+        <option value="none">No repeat</option>
+        <option value="daily">Daily</option>
+        <option value="weekly">Weekly</option>
+        <option value="monthly">Monthly</option>
+      </select>
+    </div>
+
+    <div class="modal-actions">
+      <button onclick="closeModal()">Cancel</button>
+      <button class="primary" id="saveBtn" onclick="saveMeeting()">Save</button>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>
