@@ -10,8 +10,11 @@
   },
   "dependencies": {
     "next": "16.1.1",
+    "node-cron": "^4.2.1",
+    "nodemailer": "^7.0.12",
     "react": "19.2.3",
-    "react-dom": "19.2.3"
+    "react-dom": "19.2.3",
+    "twilio": "^5.11.2"
   },
   "devDependencies": {
     "eslint": "^9",

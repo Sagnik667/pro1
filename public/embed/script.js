@@ -167,29 +167,26 @@ function createCardNode(m, start, end) {
 
   // --- Top section (title / time / actions) ---
   card.innerHTML = `
-    <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start;">
-      <div>
-        <div class="date">${formatDate(start)}</div>
-        <div class="time">
-          ${start.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} -
-          ${end.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
-        </div>
-        <div class="title">${escapeHtml(m.title)}</div>
+  <div class="card-top">
+    <div class="card-main">
+      <div class="date">${formatDate(start)}</div>
+      <div class="time">
+        ${start.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })} –
+        ${end.toLocaleTimeString([], { hour:'2-digit', minute:'2-digit' })}
       </div>
-      <div style="display:flex;flex-direction:column;gap:8px;">
-        ${!isPast ? `<button class="small-btn" onclick="openEditModal('${m.id}')">Edit</button>` : ``}
-        <button class="small-btn" style="border-color:#ef4444;color:#ef4444;" onclick="deleteMeeting('${m.id}')">
-          Delete
-        </button>
-      </div>
+      <div class="title">${escapeHtml(m.title)}</div>
     </div>
-  `;
+
+    <div class="card-actions">
+      ${!isPast ? `<button class="small-btn" onclick="openEditModal('${m.id}')">Edit</button>` : ``}
+      <button class="small-btn danger" onclick="deleteMeeting('${m.id}')">Delete</button>
+    </div>
+  </div>
+`;
 
   // --- Footer (status / priority / join) ---
   const footer = document.createElement('div');
-  footer.style.display = 'flex';
-  footer.style.gap = '10px';
-  footer.style.marginTop = '8px';
+  footer.className = 'card-footer';
 
   const pri = document.createElement('span');
   pri.className = 'badge ' + (m.importance || 'Medium');
@@ -607,6 +604,22 @@ function updateImportanceTint(sel){
 }
 
 ///// --- Init --- /////
+async function saveNotificationSettings() {
+  const email = document.getElementById("defaultEmail").value.trim();
+  const phone = document.getElementById("defaultPhone").value.trim();
+
+  await fetch("/api/settings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      defaultEmail: email,
+      defaultPhone: phone
+    })
+  });
+
+  alert("Notification settings saved.");
+}
+
 function init(){
   load();
   renderAll();

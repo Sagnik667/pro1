@@ -120,37 +120,73 @@
   </div>
 
   <div class="settings-box">
-    <h3>Default Meeting Link</h3>
-    <input id="defaultLink" placeholder="https://meet.google.com/new" />
-  </div>
-</section>
+  <h3>Notification Targets</h3>
+
+  <label class="settings-row">
+    Default Email
+    <input id="defaultEmail" type="email" placeholder="example@gmail.com" />
+  </label>
+
+  <label class="settings-row">
+    Default Phone
+    <input id="defaultPhone" type="tel" placeholder="+91XXXXXXXXXX" />
+  </label>
+
+  <button class="small-btn" onclick="saveNotificationSettings()">
+    Save Notification Settings
+  </button>
+</div>
+
+<div class="settings-box">
+  <h3>Default Meeting Link</h3>
+
+  <input
+    id="defaultLink"
+    type="url"
+    placeholder="https://meet.google.com/new"
+  />
+
+  <p class="muted" style="margin-top:8px;font-size:13px;">
+    Used when a meeting has no specific link.
+  </p>
+</div>
+
 
 <!-- MAIN MODAL -->
 <div id="modal" class="modal" aria-hidden="true">
   <div class="modal-content">
     <h3 id="modalTitle">Schedule Meeting</h3>
 
-    <input id="title" placeholder="Title" />
-    <div style="display:flex;gap:10px;">
+    <div class="modal-row">
+      <input id="title" placeholder="Title" />
+    </div>
+
+    <div class="modal-row three">
       <input id="date" type="date" />
       <input id="start" type="time" />
       <input id="end" type="time" />
     </div>
 
-    <select id="type">
-      <option>Online</option>
-      <option>Offline</option>
-    </select>
+    <div class="modal-row">
+      <select id="type">
+        <option>Online</option>
+        <option>Offline</option>
+      </select>
+    </div>
 
-    <select id="importance" onchange="updateImportanceTint(this)">
-      <option value="Low">Low Importance</option>
-      <option value="Medium" selected>Moderate Importance</option>
-      <option value="High">High Importance</option>
-    </select>
+    <div class="modal-row">
+      <select id="importance" onchange="updateImportanceTint(this)">
+        <option value="Low">Low Importance</option>
+        <option value="Medium" selected>Moderate Importance</option>
+        <option value="High">High Importance</option>
+      </select>
+    </div>
 
-    <input id="link" placeholder="Meeting Link (optional)" />
+    <div class="modal-row">
+      <input id="link" placeholder="Meeting Link (optional)" />
+    </div>
 
-    <div style="display:flex;gap:10px;">
+    <div class="modal-row two">
       <select id="reminder">
         <option value="0">At time</option>
         <option value="5">5 min before</option>
@@ -173,6 +209,7 @@
     </div>
   </div>
 </div>
+
 
 </body>
 </html>
