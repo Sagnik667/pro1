@@ -871,6 +871,23 @@ body.dark .modal-content {
   outline-offset: -2px;
   box-shadow: 0 10px 26px rgba(99,102,241,0.35);
 }
+/* LIGHT MODE: fully highlight today's date */
+body:not(.dark) .calendar-day.today {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: #ffffff;
+  font-weight: 800;
+  border: none;
+  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.45);
+}
+/* DARK MODE: fully highlight today's date */
+body.dark .calendar-day.today {
+  background: linear-gradient(135deg, #1e40af, #1e3a8a);
+  color: #e0e7ff;
+  font-weight: 800;
+  border: none;
+  box-shadow: 0 12px 30px rgba(30, 58, 138, 0.6);
+}
+
 
 @keyframes glow {
   0%, 100% { box-shadow: 0 8px 20px rgba(99,102,241,0.3), 0 0 30px rgba(99,102,241,0.2); }
