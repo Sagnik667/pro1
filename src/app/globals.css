@@ -763,9 +763,9 @@ body.dark .modal-content select {
   gap: 14px;
   margin-top: 22px;
 }
-
+/*  */
 .modal-actions button { 
-  padding: 10px 14px; 
+  padding: 11px 14px; 
   border-radius: 10px; 
   cursor: pointer; 
 }
