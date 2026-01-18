@@ -1,53 +1,67 @@
+const DEFAULT_EMAIL = "nunnun5805@gmail.com";
+const DEFAULT_PHONE = "+917044061918";
+
+export const runtime = "nodejs";
+
 import nodemailer from "nodemailer";
 import twilio from "twilio";
-import fs from "fs";
-import path from "path";
-
-const settingsPath = path.join(process.cwd(), "data", "settings.json");
 
 export async function POST(req) {
   const { title, time, link } = await req.json();
-  const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+const email = DEFAULT_EMAIL;
+const phone = DEFAULT_PHONE;
 
-  // EMAIL
-  const transporter = nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.EMAIL_USER,
-      pass: process.env.EMAIL_PASS
-    }
-  });
 
-  const emailMsg = `
-Meeting Reminder
+  const message = `Meeting Reminder
 
 Title: ${title}
 Time: ${time}
 Link: ${link}
 `;
 
-  if (settings.defaultEmail) {
-    await transporter.sendMail({
-      from: process.env.EMAIL_USER,
-      to: settings.defaultEmail,
-      subject: `Meeting Reminder: ${title}`,
-      text: emailMsg
-    });
+  // ---------- EMAIL ----------
+  if (email) {
+    try {
+      const transporter = nodemailer.createTransport({
+        service: "gmail",
+        auth: {
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS
+        }
+      });
+
+      const info = await transporter.sendMail({
+        from: process.env.EMAIL_USER,
+        to: email,
+        subject: `Meeting Reminder: ${title}`,
+        text: message
+      });
+
+      console.log("[email] sent:", info.response);
+    } catch (err) {
+      console.error("[email] failed:", err);
+    }
   }
 
-  // SMS
-  if (settings.defaultPhone) {
-    const client = twilio(
-      process.env.TWILIO_SID,
-      process.env.TWILIO_AUTH_TOKEN
-    );
+  // ---------- SMS ----------
+  /* if (phone) {
+    try {
+      const client = twilio(
+        process.env.TWILIO_SID,
+        process.env.TWILIO_AUTH_TOKEN
+      );
 
-    await client.messages.create({
-      body: `Meeting Reminder: ${title}\n${time}\n${link}`,
-      from: process.env.TWILIO_PHONE,
-      to: settings.defaultPhone
-    });
-  }
+      await client.messages.create({
+        body: `Meeting Reminder: ${title}\n${time}\n${link}`,
+        from: process.env.TWILIO_PHONE,
+        to: phone
+      });
+
+      console.log("[sms] sent");
+    } catch (err) {
+      console.error("[sms] failed:", err);
+    }
+  } */
 
   return Response.json({ success: true });
 }

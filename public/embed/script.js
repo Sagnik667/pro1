@@ -10,6 +10,14 @@ const REMIND_KEY = 'meetings.combined.v1.reminded';
 const THEME_KEY = 'meetings.theme';
 const PAST_MEETING_RETENTION_DAYS = 7;
 
+function getUserId() {
+  let uid = localStorage.getItem("anonUserId");
+  if (!uid) {
+    uid = "anon-" + Math.random().toString(36).slice(2, 10);
+    localStorage.setItem("anonUserId", uid);
+  }
+  return uid;
+}
 
 let meetings = [];
 let remindedMap = loadReminded();
@@ -367,17 +375,77 @@ function saveMeeting(){
 }
 
 function createMeeting(payload){
-  const m = Object.assign({}, payload, { id: uid(), createdAt: new Date().toISOString(), completedOccurrences: [] });
+  // --- existing frontend behavior ---
+  const m = Object.assign({}, payload, {
+    id: uid(),
+    createdAt: new Date().toISOString(),
+    completedOccurrences: []
+  });
   meetings.push(m);
   save();
+
+  // --- Phase 6 Step 4: backend mirror ---
+  const serverMeeting = {
+    id: m.id,
+    userId: getUserId(),
+    title: payload.title,
+    startTime: new Date(payload.date + "T" + payload.start).toISOString(),
+    endTime: payload.end
+      ? new Date(payload.date + "T" + payload.end).toISOString()
+      : null,
+    meetingLink: payload.link || "",
+    reminderMinutes: payload.reminder || 10,
+    notified: false
+  };
+
+  fetch("/api/meetings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(serverMeeting)
+  }).catch(err => {
+    console.error("Failed to sync meeting to backend:", err);
+  });
 }
+
 
 function updateMeeting(id, payload){
   const idx = meetings.findIndex(x => x.id === id);
   if (idx === -1) return;
-  meetings[idx] = Object.assign({}, meetings[idx], payload, { updatedAt: new Date().toISOString() });
+
+  // update frontend copy
+  meetings[idx] = Object.assign(
+    {},
+    meetings[idx],
+    payload,
+    { updatedAt: new Date().toISOString() }
+  );
+
   save();
+  renderAll();
+
+  // ---- backend sync (CRITICAL) ----
+  const serverMeeting = {
+    id,
+    userId: getUserId(),
+    title: payload.title,
+    startTime: new Date(payload.date + "T" + payload.start).toISOString(),
+    endTime: payload.end
+      ? new Date(payload.date + "T" + payload.end).toISOString()
+      : null,
+    meetingLink: payload.link || "",
+    reminderMinutes: payload.reminder || 10,
+    notified: false   // reset notification on edit
+  };
+
+  fetch("/api/meetings", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(serverMeeting)
+  }).catch(err => {
+    console.error("Failed to sync edited meeting to backend:", err);
+  });
 }
+
 
 function openEditModal(id){
   const m = meetings.find(x => x.id === id);
@@ -398,10 +466,20 @@ function openEditModal(id){
 
 function deleteMeeting(id){
   if (!confirm('Delete this meeting series?')) return;
+
   meetings = meetings.filter(x => x.id !== id);
   save();
   renderAll();
+
+  fetch("/api/meetings", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id })
+  }).catch(err => {
+    console.error("Failed to delete meeting from backend", err);
+  });
 }
+
 
 function markDoneOccurrence(id, occISO){
   const m = meetings.find(x => x.id === id);
@@ -533,6 +611,27 @@ function showToast(text){
 }
 
 ///// --- Settings --- /////
+
+async function loadNotificationSettings() {
+  try {
+    const res = await fetch("/api/settings");
+    const allSettings = await res.json();
+
+    const userSettings = allSettings[getUserId()];
+    if (!userSettings) return;
+
+    if (userSettings.email) {
+      document.getElementById("defaultEmail").value = userSettings.email;
+    }
+
+    if (userSettings.phone) {
+      document.getElementById("defaultPhone").value = userSettings.phone;
+    }
+  } catch (err) {
+    console.error("Failed to load notification settings", err);
+  }
+}
+
 function toggleNotifications(el){ notificationEnabled = el.checked; }
 function changeAlarm(sel){
   alarmType = sel.value;
@@ -612,8 +711,9 @@ async function saveNotificationSettings() {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      defaultEmail: email,
-      defaultPhone: phone
+      userId: getUserId(),
+      email,
+      phone
     })
   });
 
@@ -624,6 +724,7 @@ function init(){
   load();
   renderAll();
   requestNotificationPermission();
+  loadNotificationSettings();
 
   // wire search / filter
   const search = document.getElementById('searchInput');
