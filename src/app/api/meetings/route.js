@@ -1,51 +1,25 @@
-import fs from "fs";
-import path from "path";
-
-const filePath = path.join(process.cwd(), "data", "meetings.json");
+import { supabase } from "@/lib/supabase";
 
 export async function POST(req) {
-  const meeting = await req.json();
+  const data = await req.json();
 
-  let meetings = [];
-  try {
-    meetings = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    meetings = [];
+  const { error } = await supabase
+    .from("meetings")
+    .upsert({
+      id: data.id,
+      user_id: data.userId,
+      title: data.title,
+      start_time: data.startTime,
+      end_time: data.endTime,
+      meeting_link: data.meetingLink,
+      reminder_minutes: data.reminderMinutes,
+      importance: data.importance,
+      recurrence: data.recurrence
+    });
+
+  if (error) {
+    return Response.json({ error: error.message }, { status: 500 });
   }
-
-  // Remove existing meeting with same id (edit-safe)
-  meetings = meetings.filter(m => m.id !== meeting.id);
-
-  meetings.push(meeting);
-
-  fs.writeFileSync(filePath, JSON.stringify(meetings, null, 2));
-
-  return Response.json({ success: true });
-}
-
-export async function GET() {
-  let meetings = [];
-  try {
-    meetings = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    meetings = [];
-  }
-  return Response.json(meetings);
-}
-
-export async function DELETE(req) {
-  const { id } = await req.json();
-
-  let meetings = [];
-  try {
-    meetings = JSON.parse(fs.readFileSync(filePath, "utf-8"));
-  } catch {
-    return Response.json({ success: false });
-  }
-
-  meetings = meetings.filter(m => m.id !== id);
-
-  fs.writeFileSync(filePath, JSON.stringify(meetings, null, 2));
 
   return Response.json({ success: true });
 }

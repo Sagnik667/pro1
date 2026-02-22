@@ -21,6 +21,8 @@ function getUserId() {
 
 let meetings = [];
 let remindedMap = loadReminded();
+participants = [];
+
 let notificationEnabled = true;
 let alarmType = 'default';
 const soundEl = document.getElementById('notifySound');
@@ -242,6 +244,46 @@ function computeStatus(start, end, m, occ){
 }
 
 function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+// ---- Participant helpers ---- //
+function addParticipant() {
+  const email = document.getElementById("pEmail").value.trim();
+  const mobile = document.getElementById("pMobile").value.trim();
+
+  if (!email || !mobile) {
+    alert("Please enter both email and mobile");
+    return;
+  }
+
+  participants.push({ email, mobile });
+
+  document.getElementById("pEmail").value = "";
+  document.getElementById("pMobile").value = "";
+
+  renderParticipantList();
+}
+
+
+function renderParticipantList() {
+  const ul = document.getElementById("participantList");
+  if (!ul) return;
+
+  ul.innerHTML = participants
+    .map(
+      (p, i) => `
+      <li>
+        ${p.email} (${p.mobile})
+        <button class="small-btn" onclick="removeParticipant(${i})">Remove</button>
+      </li>
+    `
+    )
+    .join("");
+}
+
+function removeParticipant(index) {
+  participants.splice(index, 1);
+  renderParticipantList();
+}
+
 
 ///// --- Calendar --- /////
 function renderCalendar(month, year){
@@ -323,12 +365,23 @@ function prevMonth(){ displayMonth--; if (displayMonth < 0){ displayMonth = 11; 
 
 ///// --- CRUD --- /////
 function openModal(){
-  document.getElementById('modal').style.display = 'block';
-  document.getElementById('modal').setAttribute('aria-hidden', 'false');
+  const modal = document.getElementById('modal');
+  modal.style.display = 'block';
+
   document.getElementById('modalTitle').textContent = 'Schedule Meeting';
-  clearForm();
+
+  // 🔴 IMPORTANT: reset editId
   document.getElementById('saveBtn').dataset.editId = '';
+
+  // reset form
+  clearForm();
+
+  // reset participants
+  participants = [];
+  renderParticipantList();
 }
+
+
 
 function closeModal(){
   document.getElementById('modal').style.display = 'none';
@@ -336,17 +389,25 @@ function closeModal(){
 }
 
 function clearForm(){
+  // Reset only the form fields — do NOT reset participants here.
   ['title','date','start','end','type','importance','link','reminder','recurrence'].forEach(id=>{
     const el = document.getElementById(id);
     if (!el) return;
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
   });
-  document.getElementById('importance').value = 'Medium';
-  document.getElementById('reminder').value = '10';
-  document.getElementById('recurrence').value = 'none';
-  document.getElementById('type').value = 'Online';
+
+  // sensible defaults
+  const imp = document.getElementById('importance');
+  if (imp) imp.value = 'Medium';
+  const rem = document.getElementById('reminder');
+  if (rem) rem.value = '10';
+  const rec = document.getElementById('recurrence');
+  if (rec) rec.value = 'none';
+  const typeEl = document.getElementById('type');
+  if (typeEl) typeEl.value = 'Online';
 }
+
 
 function saveMeeting(){
   const id = document.getElementById('saveBtn').dataset.editId;
@@ -374,38 +435,93 @@ function saveMeeting(){
   renderAll();
 }
 
-function createMeeting(payload){
-  // --- existing frontend behavior ---
-  const m = Object.assign({}, payload, {
+function createMeeting(payload) {
+  const saveBtn = document.getElementById('saveBtn');
+saveBtn.disabled = true;
+saveBtn.textContent = 'Saving...';
+
+  const m = {
+    ...payload,
     id: uid(),
     createdAt: new Date().toISOString(),
     completedOccurrences: []
-  });
+  };
+
+  // local state + persistence
   meetings.push(m);
   save();
 
-  // --- Phase 6 Step 4: backend mirror ---
+  // take a snapshot of participants now — protects against later resets
+  const participantsToSave = participants.slice();
+
+  console.log('Saving participants for meeting', m.id, participantsToSave);
+
   const serverMeeting = {
     id: m.id,
     userId: getUserId(),
     title: payload.title,
+    // keep ISO string; server already converts or expects it
     startTime: new Date(payload.date + "T" + payload.start).toISOString(),
-    endTime: payload.end
-      ? new Date(payload.date + "T" + payload.end).toISOString()
-      : null,
-    meetingLink: payload.link || "",
+    endTime: payload.end ? new Date(payload.date + "T" + payload.end).toISOString() : null,
+    meetingLink: payload.link || null,
     reminderMinutes: payload.reminder || 10,
-    notified: false
+    importance: payload.importance || "Medium",
+    recurrence: payload.recurrence || "none"
   };
 
+  // POST meeting then POST participants (best-effort)
   fetch("/api/meetings", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(serverMeeting)
-  }).catch(err => {
-    console.error("Failed to sync meeting to backend:", err);
+  })
+  .then(async res => {
+    if (!res.ok) {
+      const txt = await res.text().catch(()=>'<no body>');
+      throw new Error(`Failed to save meeting: ${res.status} ${txt}`);
+    }
+    // POST participants in parallel
+    return Promise.all(participantsToSave.map(async (p) => {
+      try {
+        const r = await fetch("/api/participants", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            meetingId: m.id,
+            email: p.email,
+            mobile: p.mobile
+          })
+        });
+        if (!r.ok) {
+          const t = await r.text().catch(()=>'<no body>');
+          console.error('participant save failed', r.status, t, p);
+          return { ok:false, status: r.status, body: t, participant: p };
+        }
+        // return parsed body optionally
+        return { ok:true, participant: p, result: await r.json().catch(()=>null) };
+      } catch(err) {
+        console.error('participant save error', err, p);
+        return { ok:false, error: err.message, participant: p };
+      }
+    }));
+  })
+  .then(results => {
+    console.log('participants save results', results);
+    // Clear participants now that they are saved
+    participants = [];
+    renderParticipantList();
+  })
+  .catch(err => {
+    console.error("Saving meeting/participants failed", err);
+    // keep participants so user can retry — don't silently clear them on error
   });
+  saveBtn.disabled = false;
+saveBtn.textContent = 'Save';
+
 }
+
+
+
 
 
 function updateMeeting(id, payload){

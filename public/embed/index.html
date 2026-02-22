@@ -41,7 +41,7 @@
       <option value="Medium">Medium</option>
       <option value="Low">Low</option>
     </select>
-    <button class="small-btn" onclick="openModal()">+ New</button>
+    <button type ="button" class="small-btn" onclick="openModal()">+ New</button>
   </div>
 
   <div class="grid" id="upcomingGrid"></div>
@@ -202,6 +202,29 @@
         <option value="weekly">Weekly</option>
         <option value="monthly">Monthly</option>
       </select>
+    </div>
+
+        <!-- PARTICIPANTS -->
+    <div class="modal-row">
+      <h4>Participants</h4>
+
+      <input
+        id="pEmail"
+        type="email"
+        placeholder="Participant Email"
+      />
+
+      <input
+        id="pMobile"
+        type="tel"
+        placeholder="Participant Mobile"
+      />
+
+      <button class="small-btn" onclick="addParticipant()">
+        + Add Participant
+      </button>
+
+      <ul id="participantList"></ul>
     </div>
 
     <div class="modal-actions">
