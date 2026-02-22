@@ -1,16 +1,14 @@
-const DEFAULT_EMAIL = "nunnun5805@gmail.com";
-const DEFAULT_PHONE = "+917044061918";
-
 export const runtime = "nodejs";
 
 import nodemailer from "nodemailer";
 import twilio from "twilio";
 
 export async function POST(req) {
-  const { title, time, link } = await req.json();
-const email = DEFAULT_EMAIL;
-const phone = DEFAULT_PHONE;
+  // ✅ MUST destructure email and phone from request
+  const { email, phone, title, time, link } = await req.json();
 
+  let emailStatus = "not_attempted";
+  let smsStatus = "not_attempted";
 
   const message = `Meeting Reminder
 
@@ -31,20 +29,22 @@ Link: ${link}
       });
 
       const info = await transporter.sendMail({
-        from: process.env.EMAIL_USER,
-        to: email,
+        from: process.env.EMAIL_USER, // FROM = server (env)
+        to: email,                    // TO = user (settings)
         subject: `Meeting Reminder: ${title}`,
         text: message
       });
 
       console.log("[email] sent:", info.response);
+      emailStatus = "sent";
     } catch (err) {
-      console.error("[email] failed:", err);
+      console.error("[email] failed:", err.message);
+      emailStatus = "failed";
     }
   }
 
   // ---------- SMS ----------
-  /* if (phone) {
+  if (phone) {
     try {
       const client = twilio(
         process.env.TWILIO_SID,
@@ -53,15 +53,21 @@ Link: ${link}
 
       await client.messages.create({
         body: `Meeting Reminder: ${title}\n${time}\n${link}`,
-        from: process.env.TWILIO_PHONE,
-        to: phone
+        from: process.env.TWILIO_PHONE, // Twilio number
+        to: phone                      // User phone
       });
 
       console.log("[sms] sent");
+      smsStatus = "sent";
     } catch (err) {
-      console.error("[sms] failed:", err);
+      console.error("[sms] failed:", err.message);
+      smsStatus = "failed";
     }
-  } */
+  }
 
-  return Response.json({ success: true });
+  return Response.json({
+    success: true,
+    emailStatus,
+    smsStatus
+  });
 }

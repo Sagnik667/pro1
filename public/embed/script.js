@@ -756,49 +756,46 @@ function changeAlarm(sel){
   else soundEl.src = 'https://actions.google.com/sounds/v1/alarms/beep_short.ogg';
 }
 
-///// --- Theme toggle: persistence + accessibility --- /////
+///// --- Theme switch: persistence + accessibility --- /////
 function applyTheme(theme) {
-  const el = document.querySelector('.theme-toggle');
+  const checkbox = document.querySelector('.theme-switch__checkbox');
+  const label = document.querySelector('.theme-switch');
   const isDark = theme === 'dark';
   document.body.classList.toggle('dark', isDark);
-  // Set ARIA attributes for accessibility
-  if (el) {
-    el.setAttribute('role', 'switch');
-    el.setAttribute('tabindex', '0');
-    el.setAttribute('aria-checked', isDark ? 'true' : 'false');
+  if (checkbox) checkbox.checked = isDark;
+  if (label) {
+    label.setAttribute('role', 'switch');
+    label.setAttribute('tabindex', '0');
+    label.setAttribute('aria-checked', isDark ? 'true' : 'false');
   }
   try { localStorage.setItem(THEME_KEY, theme); } catch(e){}
 }
 
-function toggleTheme() {
-  const isDark = document.body.classList.toggle('dark');
-  const theme = isDark ? 'dark' : 'light';
-  // update aria and persist
-  const el = document.querySelector('.theme-toggle');
-  if (el) el.setAttribute('aria-checked', isDark ? 'true' : 'false');
-  try { localStorage.setItem(THEME_KEY, theme); } catch(e){}
-}
-
-// Add keyboard accessibility to theme toggle (space/enter)
+// Add keyboard accessibility to theme switch (space/enter)
 function initThemeToggle() {
-  const el = document.querySelector('.theme-toggle');
-  if (!el) return;
-  el.setAttribute('tabindex', '0');
-  el.setAttribute('role', 'switch');
+  const checkbox = document.querySelector('.theme-switch__checkbox');
+  const label = document.querySelector('.theme-switch');
+  if (!checkbox || !label) return;
   const saved = localStorage.getItem(THEME_KEY) || 'light';
   applyTheme(saved);
 
-  el.addEventListener('keydown', (ev) => {
+  checkbox.addEventListener('change', function() {
+    applyTheme(checkbox.checked ? 'dark' : 'light');
+  });
+
+  label.addEventListener('keydown', (ev) => {
     if (ev.key === ' ' || ev.key === 'Spacebar' || ev.key === 'Enter') {
       ev.preventDefault();
-      toggleTheme();
+      checkbox.checked = !checkbox.checked;
+      checkbox.dispatchEvent(new Event('change'));
     }
   });
 
-  // ensure aria sync if other parts toggle theme
-  const observer = new MutationObserver(()=> {
+  // ensure aria + checkbox sync if body.dark is toggled elsewhere
+  const observer = new MutationObserver(function() {
     const isDark = document.body.classList.contains('dark');
-    el.setAttribute('aria-checked', isDark ? 'true' : 'false');
+    label.setAttribute('aria-checked', isDark ? 'true' : 'false');
+    checkbox.checked = isDark;
   });
   observer.observe(document.body, { attributes: true, attributeFilter: ['class'] });
 }
@@ -808,8 +805,6 @@ function showPage(id){
   document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
   document.getElementById(id).classList.add('active');
 }
-
-function toggleThemeKeyboardFriendly(){ toggleTheme(); } // kept for inline handlers if used
 
 function updateImportanceTint(sel){
   const val = sel.value;
