@@ -65,9 +65,18 @@ Link: ${link}
     }
   }
 
-  return Response.json({
-    success: true,
-    emailStatus,
-    smsStatus
-  });
+  const emailRequested = Boolean(email);
+  const smsRequested = Boolean(phone);
+  const emailOk = !emailRequested || emailStatus === "sent";
+  const smsOk = !smsRequested || smsStatus === "sent";
+  const success = emailOk && smsOk;
+
+  return Response.json(
+    {
+      success,
+      emailStatus,
+      smsStatus
+    },
+    { status: success ? 200 : 500 }
+  );
 }

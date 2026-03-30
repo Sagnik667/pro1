@@ -12,8 +12,9 @@ console.log("====================================");
 
 async function runScheduler() {
   try {
-    let meetings = JSON.parse(fs.readFileSync(meetingsPath, "utf-8"));
-    let settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    const meetings = JSON.parse(fs.readFileSync(meetingsPath, "utf-8"));
+    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
+    let hasUpdates = false;
 
     for (const m of meetings) {
       if (m.notified) continue;
@@ -29,7 +30,7 @@ async function runScheduler() {
           continue;
         }
 
-        await fetch("http://localhost:3000/api/notify", {
+        const response = await fetch("http://localhost:3000/api/notify", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -41,11 +42,34 @@ async function runScheduler() {
           })
         });
 
-        m.notified = true;
-        fs.writeFileSync(meetingsPath, JSON.stringify(meetings, null, 2));
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(
+            `❌ Notify API failed for "${m.title}" (status ${response.status}):`,
+            errorText
+          );
+          continue;
+        }
 
-        console.log("✅ Notification sent:", m.title);
+        const result = await response.json();
+        const emailDelivered = user.email ? result.emailStatus === "sent" : true;
+        const smsDelivered = user.phone ? result.smsStatus === "sent" : true;
+
+        if (emailDelivered && smsDelivered) {
+          m.notified = true;
+          hasUpdates = true;
+          console.log("✅ Notification sent:", m.title);
+        } else {
+          console.warn(
+            `⚠️ Notification not fully delivered for "${m.title}".`,
+            result
+          );
+        }
       }
+    }
+
+    if (hasUpdates) {
+      fs.writeFileSync(meetingsPath, JSON.stringify(meetings, null, 2));
     }
   } catch (err) {
     console.error("❌ Scheduler error:", err.message);
