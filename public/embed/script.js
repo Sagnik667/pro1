@@ -47,11 +47,11 @@ function isWithinPastWindow(meetingEndTime) {
 
 
 ///// --- Persistence --- /////
-function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings)); }
-function load(){
-  try{ meetings = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
-  catch(e){ meetings = []; }
-}
+// function save(){ localStorage.setItem(STORAGE_KEY, JSON.stringify(meetings)); }
+// function load(){
+//   try{ meetings = JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]'); }
+//   catch(e){ meetings = []; }
+// }
 function loadReminded(){ try { return JSON.parse(localStorage.getItem(REMIND_KEY) || '{}'); } catch(e){ return {}; } }
 function saveReminded(){ localStorage.setItem(REMIND_KEY, JSON.stringify(remindedMap)); }
 
@@ -106,7 +106,6 @@ function renderAll(){
   renderUpcoming();
   renderAllLists();
   renderCalendar(displayMonth, displayYear);
-  save();
   saveReminded();
 }
 
@@ -246,16 +245,18 @@ function computeStatus(start, end, m, occ){
 function escapeHtml(s){ return (s+'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 // ---- Participant helpers ---- //
 function addParticipant() {
+  const name = document.getElementById("pName").value.trim();
   const email = document.getElementById("pEmail").value.trim();
   const mobile = document.getElementById("pMobile").value.trim();
 
-  if (!email || !mobile) {
-    alert("Please enter both email and mobile");
+  if (!name || !email || !mobile) {
+    alert("Please enter name, email and mobile");
     return;
   }
 
-  participants.push({ email, mobile });
+  participants.push({ name, email, mobile });
 
+  document.getElementById("pName").value = "";
   document.getElementById("pEmail").value = "";
   document.getElementById("pMobile").value = "";
 
@@ -271,7 +272,7 @@ function renderParticipantList() {
     .map(
       (p, i) => `
       <li>
-        ${p.email} (${p.mobile})
+        ${p.name} - ${p.email} (${p.mobile})
         <button class="small-btn" onclick="removeParticipant(${i})">Remove</button>
       </li>
     `
@@ -449,7 +450,7 @@ saveBtn.textContent = 'Saving...';
 
   // local state + persistence
   meetings.push(m);
-  save();
+
 
   // take a snapshot of participants now — protects against later resets
   const participantsToSave = participants.slice();
@@ -488,6 +489,7 @@ saveBtn.textContent = 'Saving...';
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             meetingId: m.id,
+            name: p.name,
             email: p.email,
             mobile: p.mobile
           })
@@ -536,7 +538,6 @@ function updateMeeting(id, payload){
     { updatedAt: new Date().toISOString() }
   );
 
-  save();
   renderAll();
 
   // ---- backend sync (CRITICAL) ----
@@ -562,8 +563,28 @@ function updateMeeting(id, payload){
   });
 }
 
+async function loadParticipants(meetingId) {
+  try {
+    const res = await fetch(`/api/getParticipants?meetingId=${meetingId}`);
 
-function openEditModal(id){
+    if (!res.ok) throw new Error("Failed to fetch participants");
+
+    const data = await res.json();
+
+    participants = data.map(p => ({
+      name: p.participants_master.name,
+      email: p.participants_master.email,
+      mobile: p.participants_master.mobile
+    }));
+
+    renderParticipantList();
+
+  } catch (err) {
+    console.error("Error loading participants:", err);
+  }
+}
+
+async function openEditModal(id){
   const m = meetings.find(x => x.id === id);
   if (!m) return;
   document.getElementById('modal').style.display = 'block';
@@ -578,13 +599,16 @@ function openEditModal(id){
   document.getElementById('reminder').value = String(m.reminder || 10);
   document.getElementById('recurrence').value = m.recurrence || 'none';
   document.getElementById('saveBtn').dataset.editId = id;
+  await loadParticipants(id);
 }
+
+
 
 function deleteMeeting(id){
   if (!confirm('Delete this meeting series?')) return;
 
   meetings = meetings.filter(x => x.id !== id);
-  save();
+
   renderAll();
 
   fetch("/api/meetings", {
@@ -748,6 +772,7 @@ async function loadNotificationSettings() {
   }
 }
 
+
 function toggleNotifications(el){ notificationEnabled = el.checked; }
 function changeAlarm(sel){
   alarmType = sel.value;
@@ -831,9 +856,38 @@ async function saveNotificationSettings() {
   alert("Notification settings saved.");
 }
 
-function init(){
-  load();
-  renderAll();
+async function loadMeetingsFromDB() {
+  try {
+    const res = await fetch("/api/getMeetings");
+
+    if (!res.ok) {
+      throw new Error("Failed to fetch meetings");
+    }
+
+    const data = await res.json();
+
+    // convert DB data → your frontend format
+    meetings = data.map(m => ({
+      id: m.id,
+      title: m.title,
+      date: new Date(m.start_time).toISOString().split("T")[0],
+      start: new Date(m.start_time).toTimeString().slice(0,5),
+      end: m.end_time ? new Date(m.end_time).toTimeString().slice(0,5) : "",
+      importance: m.importance,
+      recurrence: m.recurrence
+    }));
+
+    renderAll();
+
+  } catch (err) {
+    console.error("Error loading meetings:", err);
+  }
+}
+
+
+async function init(){
+  await loadMeetingsFromDB(); // wait for DB data
+
   requestNotificationPermission();
   loadNotificationSettings();
 
@@ -854,8 +908,52 @@ function init(){
   // calendar navigation
   renderCalendar(displayMonth, displayYear);
 
-  // theme toggle init (persistence + keyboard support)
+  // theme toggle init
   initThemeToggle();
 }
 
 init();
+async function fetchSuggestions(query) {
+  const box = document.getElementById("suggestionsBox");
+
+  if (!query) {
+    box.style.display = "none";
+    return;
+  }
+
+  const res = await fetch(`/api/searchParticipants?q=${query}`);
+  const data = await res.json();
+
+  if (!data.length) {
+    box.style.display = "none";
+    return;
+  }
+
+  box.innerHTML = data.map(p => `
+    <div 
+      onclick="selectParticipant('${p.name}','${p.email}','${p.mobile}')"
+      style="padding:8px;cursor:pointer;border-bottom:1px solid #eee;">
+      ${p.name} - ${p.email}
+    </div>
+  `).join("");
+
+  box.style.display = "block";
+}
+
+document.getElementById("pName").addEventListener("input", (e) => {
+  fetchSuggestions(e.target.value);
+});
+
+function selectParticipant(name, email, mobile) {
+  document.getElementById("pName").value = name;
+  document.getElementById("pEmail").value = email;
+  document.getElementById("pMobile").value = mobile;
+
+  document.getElementById("suggestionsBox").style.display = "none";
+}
+
+document.addEventListener("click", (e) => {
+  if (!e.target.closest("#pName")) {
+    document.getElementById("suggestionsBox").style.display = "none";
+  }
+});

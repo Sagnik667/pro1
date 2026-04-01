@@ -45,30 +45,41 @@ Link: ${link}
 
   // ---------- SMS ----------
   if (phone) {
-    try {
-      const client = twilio(
-        process.env.TWILIO_SID,
-        process.env.TWILIO_AUTH_TOKEN
-      );
+    const hasTwilioConfig =
+      Boolean(process.env.TWILIO_SID) &&
+      Boolean(process.env.TWILIO_AUTH_TOKEN) &&
+      Boolean(process.env.TWILIO_PHONE);
 
-      await client.messages.create({
-        body: `Meeting Reminder: ${title}\n${time}\n${link}`,
-        from: process.env.TWILIO_PHONE, // Twilio number
-        to: phone                      // User phone
-      });
+    if (!hasTwilioConfig) {
+      smsStatus = "skipped_no_config";
+      console.warn("[sms] skipped: missing Twilio env configuration");
+    } else {
+      try {
+        const client = twilio(
+          process.env.TWILIO_SID,
+          process.env.TWILIO_AUTH_TOKEN
+        );
 
-      console.log("[sms] sent");
-      smsStatus = "sent";
-    } catch (err) {
-      console.error("[sms] failed:", err.message);
-      smsStatus = "failed";
+        await client.messages.create({
+          body: `Meeting Reminder: ${title}\n${time}\n${link}`,
+          from: process.env.TWILIO_PHONE, // Twilio number
+          to: phone                      // User phone
+        });
+
+        console.log("[sms] sent");
+        smsStatus = "sent";
+      } catch (err) {
+        console.error("[sms] failed:", err.message);
+        smsStatus = "failed";
+      }
     }
   }
 
   const emailRequested = Boolean(email);
   const smsRequested = Boolean(phone);
   const emailOk = !emailRequested || emailStatus === "sent";
-  const smsOk = !smsRequested || smsStatus === "sent";
+  const smsOk =
+    !smsRequested || smsStatus === "sent" || smsStatus === "skipped_no_config";
   const success = emailOk && smsOk;
 
   return Response.json(
