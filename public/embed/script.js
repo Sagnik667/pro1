@@ -929,6 +929,13 @@ async function fetchSuggestions(query) {
     return;
   }
 
+  // 🔥 AUTO SELECT if strong match
+  if (data.length === 1 || query.length > 5) {
+    selectParticipant(data[0].name, data[0].email, data[0].mobile);
+    return;
+  }
+
+  // otherwise show suggestions
   box.innerHTML = data.map(p => `
     <div 
       onclick="selectParticipant('${p.name}','${p.email}','${p.mobile}')"
@@ -957,3 +964,43 @@ document.addEventListener("click", (e) => {
     document.getElementById("suggestionsBox").style.display = "none";
   }
 });
+
+function startVoiceInput() {
+  const btn = document.getElementById("voiceBtn");
+
+  const SpeechRecognition =
+    window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  if (!SpeechRecognition) {
+    alert("Speech recognition not supported");
+    return;
+  }
+
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+
+  // 🔥 START animation
+  btn.classList.add("listening");
+
+  recognition.start();
+
+  recognition.onresult = function (event) {
+    let text = event.results[0][0].transcript;
+
+    text = text.trim().replace(/[.,!?]$/, "");
+
+    document.getElementById("pName").value = text;
+
+    fetchSuggestions(text);
+  };
+
+  recognition.onend = function () {
+    // 🔥 STOP animation
+    btn.classList.remove("listening");
+  };
+
+  recognition.onerror = function () {
+    btn.classList.remove("listening");
+    alert("Voice recognition error");
+  };
+}

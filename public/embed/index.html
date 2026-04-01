@@ -236,6 +236,7 @@
         z-index: 10;
       "></div>
 
+
       <input
         id="pEmail"
         type="email"
@@ -247,7 +248,13 @@
         type="tel"
         placeholder="Participant Mobile"
       />
-
+      
+      <div style="display: flex; justify-content: center;">
+        <button id="voiceBtn" class="voice-btn" onclick="startVoiceInput()">
+          🎤
+        </button>
+      </div>
+      
       <button class="small-btn" onclick="addParticipant()">
         + Add Participant
       </button>

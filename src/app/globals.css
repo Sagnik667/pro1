@@ -734,6 +734,7 @@ body.dark .meeting-card .muted {
   border-radius: 10px;
   border: 1px solid #e6eef8;
   background: transparent;
+  color: inherit;
   cursor: pointer;
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
@@ -1295,5 +1296,40 @@ body.dark .settings-box .small-btn:hover {
   color: #fff;
 }
 
+.voice-btn {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  border: none;
+  background: #2563eb;
+  color: white;
+  font-size: 24px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
 
+/* hover */
+.voice-btn:hover {
+  transform: scale(1.1);
+}
+
+/* 🔴 listening state */
+.voice-btn.listening {
+  background: #ef4444;
+  box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  animation: pulse 1.5s infinite;
+}
+
+/* animation */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7);
+  }
+  70% {
+    box-shadow: 0 0 0 20px rgba(239, 68, 68, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(239, 68, 68, 0);
+  }
+}
 
