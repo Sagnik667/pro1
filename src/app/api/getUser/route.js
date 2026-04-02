@@ -3,15 +3,13 @@ import { supabase } from "../../../lib/supabase";
 export async function GET(req) {
   try {
     const { searchParams } = new URL(req.url);
-    const query = searchParams.get("q");
-
-    if (!query) return Response.json([]);
+    const userId = searchParams.get("userId");
 
     const { data, error } = await supabase
-      .from("participants_master")
+      .from("users")
       .select("*")
-      .ilike("name", `%${query}%`)
-      .limit(5);
+      .eq("id", userId)
+      .single();
 
     if (error) throw error;
 
@@ -24,4 +22,3 @@ export async function GET(req) {
     );
   }
 }
-

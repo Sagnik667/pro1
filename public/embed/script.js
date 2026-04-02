@@ -436,6 +436,27 @@ function saveMeeting(){
   renderAll();
 }
 
+
+// 👇 ADD HERE
+async function saveUserSettings() {
+  const email = document.getElementById("defaultEmail").value.trim();
+  const phone = document.getElementById("defaultPhone").value.trim();
+
+  await fetch("/api/saveUser", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      userId: getUserId(),
+      email,
+      phone
+    })
+  });
+
+  alert("User saved!");
+}
+
 function createMeeting(payload) {
   const saveBtn = document.getElementById('saveBtn');
 saveBtn.disabled = true;
@@ -462,8 +483,8 @@ saveBtn.textContent = 'Saving...';
     userId: getUserId(),
     title: payload.title,
     // keep ISO string; server already converts or expects it
-    startTime: new Date(payload.date + "T" + payload.start).toISOString(),
-    endTime: payload.end ? new Date(payload.date + "T" + payload.end).toISOString() : null,
+    startTime: payload.date + "T" + payload.start + ":00",
+    endTime: payload.end ? payload.date + "T" + payload.end + ":00" : null,
     meetingLink: payload.link || null,
     reminderMinutes: payload.reminder || 10,
     importance: payload.importance || "Medium",
@@ -545,7 +566,7 @@ function updateMeeting(id, payload){
     id,
     userId: getUserId(),
     title: payload.title,
-    startTime: new Date(payload.date + "T" + payload.start).toISOString(),
+    startTime: payload.date + "T" + payload.start + ":00",
     endTime: payload.end
       ? new Date(payload.date + "T" + payload.end).toISOString()
       : null,
@@ -752,25 +773,25 @@ function showToast(text){
 
 ///// --- Settings --- /////
 
-async function loadNotificationSettings() {
-  try {
-    const res = await fetch("/api/settings");
-    const allSettings = await res.json();
+// async function loadNotificationSettings() {
+//   try {
+//     const res = await fetch("/api/settings");
+//     const allSettings = await res.json();
 
-    const userSettings = allSettings[getUserId()];
-    if (!userSettings) return;
+//     const userSettings = allSettings[getUserId()];
+//     if (!userSettings) return;
 
-    if (userSettings.email) {
-      document.getElementById("defaultEmail").value = userSettings.email;
-    }
+//     if (userSettings.email) {
+//       document.getElementById("defaultEmail").value = userSettings.email;
+//     }
 
-    if (userSettings.phone) {
-      document.getElementById("defaultPhone").value = userSettings.phone;
-    }
-  } catch (err) {
-    console.error("Failed to load notification settings", err);
-  }
-}
+//     if (userSettings.phone) {
+//       document.getElementById("defaultPhone").value = userSettings.phone;
+//     }
+//   } catch (err) {
+//     console.error("Failed to load notification settings", err);
+//   }
+// }
 
 
 function toggleNotifications(el){ notificationEnabled = el.checked; }
@@ -856,6 +877,27 @@ async function saveNotificationSettings() {
   alert("Notification settings saved.");
 }
 
+async function loadUserFromDB() {
+  try {
+    const res = await fetch(`/api/getUser?userId=${getUserId()}`);
+
+    if (!res.ok) return;
+
+    const user = await res.json();
+
+    if (user?.email) {
+      document.getElementById("defaultEmail").value = user.email;
+    }
+
+    if (user?.phone) {
+      document.getElementById("defaultPhone").value = user.phone;
+    }
+
+  } catch (err) {
+    console.error("Failed to load user", err);
+  }
+}
+
 async function loadMeetingsFromDB() {
   try {
     const res = await fetch("/api/getMeetings");
@@ -868,14 +910,16 @@ async function loadMeetingsFromDB() {
 
     // convert DB data → your frontend format
     meetings = data.map(m => ({
-      id: m.id,
-      title: m.title,
-      date: new Date(m.start_time).toISOString().split("T")[0],
-      start: new Date(m.start_time).toTimeString().slice(0,5),
-      end: m.end_time ? new Date(m.end_time).toTimeString().slice(0,5) : "",
-      importance: m.importance,
-      recurrence: m.recurrence
-    }));
+  id: m.id,
+  title: m.title,
+  date: new Date(m.start_time).toISOString().split("T")[0],
+  start: new Date(m.start_time).toTimeString().slice(0,5),
+  end: m.end_time ? new Date(m.end_time).toTimeString().slice(0,5) : "",
+  link: m.meeting_link || "",       // ✅ ADD THIS
+  reminder: m.reminder_minutes || 10, // ✅ ADD THIS
+  importance: m.importance,
+  recurrence: m.recurrence
+}));
 
     renderAll();
 
@@ -887,9 +931,10 @@ async function loadMeetingsFromDB() {
 
 async function init(){
   await loadMeetingsFromDB(); // wait for DB data
-
+  loadUserFromDB(); // ✅ NEW
   requestNotificationPermission();
-  loadNotificationSettings();
+  
+
 
   // wire search / filter
   const search = document.getElementById('searchInput');

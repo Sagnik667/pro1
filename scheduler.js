@@ -1,80 +1,106 @@
-import fs from "fs";
-import path from "path";
-import fetch from "node-fetch";
+// 
+// Load env vars FIRST using dynamic import to beat ES module hoisting
+import { readFileSync } from "fs";
+import { resolve } from "path";
 
-const meetingsPath = path.join(process.cwd(), "data", "meetings.json");
-const settingsPath = path.join(process.cwd(), "data", "settings.json");
+// Manually parse .env.local before anything else
+const envPath = resolve(process.cwd(), ".env.local");
+try {
+  const lines = readFileSync(envPath, "utf-8").split("\n");
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed || trimmed.startsWith("#")) continue;
+    const eqIndex = trimmed.indexOf("=");
+    if (eqIndex === -1) continue;
+    const key = trimmed.slice(0, eqIndex).trim();
+    const value = trimmed.slice(eqIndex + 1).trim();
+    if (!process.env[key]) process.env[key] = value;
+  }
+  console.log("✅ .env.local loaded");
+} catch (e) {
+  console.error("❌ Failed to load .env.local:", e.message);
+}
+
+// NOW safe to import supabase (env vars are already set)
+const { createClient } = await import("@supabase/supabase-js");
+const { default: fetch } = await import("node-fetch");
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 console.log("====================================");
 console.log("📅 Scheduler process started");
 console.log("⏰ Checking every 60 seconds");
 console.log("====================================");
 
+const BASE_URL = process.env.APP_BASE_URL || "http://localhost:3000";
+
 async function runScheduler() {
   try {
-    const meetings = JSON.parse(fs.readFileSync(meetingsPath, "utf-8"));
-    const settings = JSON.parse(fs.readFileSync(settingsPath, "utf-8"));
-    let hasUpdates = false;
+    const { data: meetings, error } = await supabase
+      .from("meetings")
+      .select("*");
+
+    console.log("🔍 Total meetings found:", meetings?.length, "at", new Date().toLocaleTimeString());
+
+    if (error) throw error;
 
     for (const m of meetings) {
-      if (m.notified) continue;
+      console.log("📋 Meeting:", m.title);
+      console.log("   start_time:", m.start_time);
+      console.log("   notified:", m.notified);
+      console.log("   user_id:", m.user_id);
+      console.log("   reminder_minutes:", m.reminder_minutes);
 
-      const startTime = new Date(m.startTime);
-      const notifyAt =
-        startTime.getTime() - (m.reminderMinutes || 10) * 60 * 1000;
+      if (m.notified) {
+        console.log("   ⏭️ Skipped - already notified");
+        continue;
+      }
+
+      // REMOVE the +05:30, just use:
+      const startTime = new Date(m.start_time);
+      const notifyAt = startTime.getTime() - (m.reminder_minutes || 10) * 60 * 1000;
+
+      console.log("   notifyAt:", new Date(notifyAt).toLocaleTimeString());
+      console.log("   startTime:", new Date(startTime).toLocaleTimeString());
+      console.log("   now:", new Date().toLocaleTimeString());
+      console.log("   should fire?", Date.now() >= notifyAt && Date.now() <= startTime.getTime());
 
       if (Date.now() >= notifyAt && Date.now() <= startTime.getTime()) {
-        const user = settings[m.userId];
-        if (!user) {
-          console.warn("⚠️ No settings for user:", m.userId);
-          continue;
-        }
-
-        const response = await fetch("http://localhost:3000/api/notify", {
+        const response = await fetch(`${BASE_URL}/api/notify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            email: user.email,
-            phone: user.phone,
-            title: m.title,
-            time: startTime.toLocaleString(),
-            link: m.meetingLink || "https://meet.google.com/new"
-          })
+  userId: m.user_id,
+  title: m.title,
+  time: startTime.toISOString(),
+  link: m.meeting_link,
+  meetingId: m.id        // ✅ ADD THIS
+})
         });
 
         if (!response.ok) {
           const errorText = await response.text();
-          console.error(
-            `❌ Notify API failed for "${m.title}" (status ${response.status}):`,
-            errorText
-          );
+          console.error("❌ Notify failed:", errorText);
           continue;
         }
 
-        const result = await response.json();
-        const emailDelivered = user.email ? result.emailStatus === "sent" : true;
-        const smsDelivered = user.phone ? result.smsStatus === "sent" : true;
+        console.log("✅ Reminder sent:", m.title);
 
-        if (emailDelivered && smsDelivered) {
-          m.notified = true;
-          hasUpdates = true;
-          console.log("✅ Notification sent:", m.title);
-        } else {
-          console.warn(
-            `⚠️ Notification not fully delivered for "${m.title}".`,
-            result
-          );
-        }
+        await supabase
+          .from("meetings")
+          .update({ notified: true })
+          .eq("id", m.id);
       }
     }
 
-    if (hasUpdates) {
-      fs.writeFileSync(meetingsPath, JSON.stringify(meetings, null, 2));
-    }
   } catch (err) {
     console.error("❌ Scheduler error:", err.message);
   }
 }
 
+ 
 setInterval(runScheduler, 60 * 1000);
-runScheduler(); // run immediately on start
+runScheduler();

@@ -5,16 +5,17 @@ export async function POST(req) {
     const data = await req.json();
 
     const meetingRow = {
-      id: data.id,
-      user_id: data.userId,
-      title: data.title,
-      start_time: data.startTime,
-      end_time: data.endTime,
-      meeting_link: data.meetingLink,
-      reminder_minutes: data.reminderMinutes,
-      importance: data.importance,
-      recurrence: data.recurrence
-    };
+  id: data.id,
+  user_id: data.userId,
+  title: data.title,
+  start_time: data.startTime,
+  end_time: data.endTime,
+  meeting_link: data.meetingLink,
+  reminder_minutes: data.reminderMinutes,
+  importance: data.importance,
+  recurrence: data.recurrence,
+  notified: data.notified ?? false   // ✅ ADD THIS
+};
 
     const { error } = await supabase
       .from("meetings")
