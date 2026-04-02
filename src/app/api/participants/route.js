@@ -1,9 +1,31 @@
-import { supabase } from "../../../lib/supabase";
+import { supabase, requireAuth } from "../../../lib/supabase";
 
 export async function POST(req) {
+  const user = await requireAuth(req);
   const { meetingId, name, email, mobile } = await req.json();
 
   try {
+    // Verify the meeting belongs to the authenticated user
+    const { data: meeting, error: meetingError } = await supabase
+      .from("meetings")
+      .select("user_id")
+      .eq("id", meetingId)
+      .single();
+
+    if (meetingError || !meeting) {
+      return Response.json(
+        { success: false, error: 'Meeting not found' },
+        { status: 404 }
+      );
+    }
+
+    if (meeting.user_id !== user.id) {
+      return Response.json(
+        { success: false, error: 'Unauthorized' },
+        { status: 403 }
+      );
+    }
+
     // 1. Check if participant exists
     let { data: existing, error: fetchError } = await supabase
       .from("participants_master")
@@ -45,7 +67,7 @@ export async function POST(req) {
 
     return Response.json(
       { success: false, error: err.message },
-      { status: 500 }
+      { status: 401 }
     );
   }
 }

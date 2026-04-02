@@ -1,12 +1,13 @@
-import { supabase } from "../../../lib/supabase";
+import { supabase, requireAuth } from "../../../lib/supabase";
 
 export async function POST(req) {
   try {
-    const { userId, email, phone } = await req.json();
+    const user = await requireAuth(req);
+    const { email, phone } = await req.json();
 
     const { error } = await supabase
-  .from("users")
-  .upsert({ id: userId, email, phone }, { onConflict: "id" });
+      .from("users")
+      .upsert({ id: user.id, email, phone }, { onConflict: "id" });
 
     if (error) throw error;
 
@@ -15,7 +16,7 @@ export async function POST(req) {
   } catch (err) {
     return Response.json(
       { error: err.message },
-      { status: 500 }
+      { status: 401 }
     );
   }
 }

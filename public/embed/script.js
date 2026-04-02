@@ -10,13 +10,144 @@ const REMIND_KEY = 'meetings.combined.v1.reminded';
 const THEME_KEY = 'meetings.theme';
 const PAST_MEETING_RETENTION_DAYS = 7;
 
+let currentUser = null;
+let authToken = localStorage.getItem('authToken') || null;
+let username = null;
+
 function getUserId() {
-  let uid = localStorage.getItem("anonUserId");
-  if (!uid) {
-    uid = "anon-" + Math.random().toString(36).slice(2, 10);
-    localStorage.setItem("anonUserId", uid);
+  return currentUser ? currentUser.id : null;
+}
+
+function setAuthData(user, token) {
+  currentUser = user;
+  authToken = token;
+  localStorage.setItem('authToken', token);
+  localStorage.setItem('user', JSON.stringify(user));
+  localStorage.setItem('supabase.auth.token', token); // backwards compatibility
+
+  // Fetch and display username
+  fetchAndDisplayUsername();
+}
+
+// Fetch username from profile
+async function fetchAndDisplayUsername() {
+  try {
+    const res = await fetch("/api/auth/profile", {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      username = data.username;
+      const usernameDisplay = document.getElementById("usernameDisplay");
+      if (usernameDisplay) {
+        usernameDisplay.textContent = username || "";
+        usernameDisplay.title = username || "";
+      }
+    }
+  } catch (err) {
+    console.error("Failed to fetch username:", err);
   }
-  return uid;
+}
+
+// Logout function to be called from parent iframe or directly
+async function logout() {
+  const tokenToClear = authToken || localStorage.getItem('authToken');
+
+  if (tokenToClear) {
+    try {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${tokenToClear}`
+        }
+      });
+    } catch (err) {
+      console.warn('logout API error', err);
+    }
+  }
+
+  localStorage.removeItem('authToken');
+  localStorage.removeItem('user');
+  localStorage.removeItem('supabase.auth.token');
+  authToken = null;
+  currentUser = null;
+
+  if (window.parent !== window && window.parent.logout) {
+    window.parent.logout();
+  } else {
+    window.location.reload();
+  }
+}
+
+// Delete account with warning confirmation
+function deleteAccountWarning() {
+  const confirmed = confirm(
+    'WARNING: This action cannot be undone.\n\n' +
+    'Your account and all associated meetings will be permanently deleted.\n\n' +
+    'Do you want to continue?'
+  );
+
+  if (confirmed) {
+    const doubleConfirmed = confirm(
+      'Are you absolutely sure? Type "DELETE" in the next prompt to confirm.'
+    );
+
+    if (doubleConfirmed) {
+      const userInput = prompt('Type DELETE to confirm account deletion:');
+      if (userInput === 'DELETE') {
+        deleteAccount();
+      } else {
+        alert('Account deletion cancelled.');
+      }
+    }
+  }
+}
+
+async function deleteAccount() {
+  try {
+    const tokenToClear = authToken || localStorage.getItem('authToken');
+
+    if (!tokenToClear) {
+      alert('Error: No auth token found');
+      return;
+    }
+
+    const res = await fetch('/api/auth/delete', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${tokenToClear}`
+      }
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.error || 'Failed to delete account');
+    }
+
+    alert('Account deleted successfully. Redirecting to login...');
+
+    // Clear local state
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('supabase.auth.token');
+    authToken = null;
+    currentUser = null;
+
+    // Redirect to login
+    if (window.parent !== window && window.parent.logout) {
+      window.parent.logout();
+    } else {
+      window.location.reload();
+    }
+  } catch (err) {
+    console.error('Delete account error:', err);
+    alert(`Error deleting account: ${err.message}`);
+  }
 }
 
 let meetings = [];
@@ -539,10 +670,10 @@ async function saveUserSettings() {
   await fetch("/api/saveUser", {
     method: "POST",
     headers: {
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${authToken}`
     },
     body: JSON.stringify({
-      userId: getUserId(),
       email,
       phone
     })
@@ -589,7 +720,10 @@ saveBtn.textContent = 'Saving...';
   // POST meeting then POST participants (best-effort)
   fetch("/api/meetings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${authToken}`
+    },
     body: JSON.stringify(serverMeeting)
   })
   .then(async res => {
@@ -602,7 +736,10 @@ saveBtn.textContent = 'Saving...';
       try {
         const r = await fetch("/api/participants", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            'Authorization': `Bearer ${authToken}`
+          },
           body: JSON.stringify({
             meetingId: m.id,
             name: p.name,
@@ -673,7 +810,10 @@ function updateMeeting(id, payload){
 
   fetch("/api/meetings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${authToken}`
+    },
     body: JSON.stringify(serverMeeting)
   }).catch(err => {
     console.error("Failed to sync edited meeting to backend:", err);
@@ -682,7 +822,11 @@ function updateMeeting(id, payload){
 
 async function loadParticipants(meetingId) {
   try {
-    const res = await fetch(`/api/getParticipants?meetingId=${meetingId}`);
+    const res = await fetch(`/api/getParticipants?meetingId=${meetingId}`, {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
 
     if (!res.ok) throw new Error("Failed to fetch participants");
 
@@ -761,7 +905,10 @@ function deleteMeeting(id){
 
   fetch("/api/meetings", {
     method: "DELETE",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${authToken}`
+    },
     body: JSON.stringify({ id })
   }).catch(err => {
     console.error("Failed to delete meeting from backend", err);
@@ -994,9 +1141,11 @@ async function saveNotificationSettings() {
 
   await fetch("/api/settings", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      'Authorization': `Bearer ${authToken}`
+    },
     body: JSON.stringify({
-      userId: getUserId(),
       email,
       phone
     })
@@ -1007,11 +1156,38 @@ async function saveNotificationSettings() {
 
 async function loadUserFromDB() {
   try {
-    const res = await fetch(`/api/getUser?userId=${getUserId()}`);
+    if (!authToken) {
+      console.warn('No auth token present; skipping loadUserFromDB');
+      return;
+    }
+
+    const res = await fetch("/api/auth/profile", {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
 
     if (!res.ok) return;
 
     const user = await res.json();
+
+    // Populate user info
+    if (user?.id) {
+      const userIdElem = document.getElementById("userId");
+      if (userIdElem) userIdElem.value = user.id;
+    }
+    if (user?.email) {
+      const userEmailElem = document.getElementById("userEmail");
+      if (userEmailElem) userEmailElem.value = user.email;
+    }
+    if (user?.username) {
+      const usernameElem = document.getElementById("userUsername");
+      if (usernameElem) usernameElem.value = user.username;
+      username = user.username;
+      // Update header display
+      const usernameDisplay = document.getElementById("usernameDisplay");
+      if (usernameDisplay) usernameDisplay.textContent = user.username;
+    }
 
     if (user?.email) {
       document.getElementById("defaultEmail").value = user.email;
@@ -1028,10 +1204,20 @@ async function loadUserFromDB() {
 
 async function loadMeetingsFromDB() {
   try {
-    const res = await fetch("/api/getMeetings");
+    if (!authToken) {
+      console.warn('No auth token present; skipping loadMeetingsFromDB');
+      return;
+    }
+
+    const res = await fetch("/api/getMeetings", {
+      headers: {
+        'Authorization': `Bearer ${authToken}`
+      }
+    });
 
     if (!res.ok) {
-      throw new Error("Failed to fetch meetings");
+      const errorBody = await res.text().catch(() => '<no body>');
+      throw new Error(`Failed to fetch meetings (${res.status}): ${errorBody}`);
     }
 
     const data = await res.json();
@@ -1094,7 +1280,23 @@ async function fetchSuggestions(query) {
     return;
   }
 
-  const res = await fetch(`/api/searchParticipants?q=${query}`);
+  if (!authToken) {
+    box.style.display = "none";
+    return;
+  }
+
+  const res = await fetch(`/api/searchParticipants?q=${query}`, {
+    headers: {
+      'Authorization': `Bearer ${authToken}`
+    }
+  });
+
+  if (!res.ok) {
+    console.error('searchParticipants error:', res.status);
+    box.style.display = "none";
+    return;
+  }
+
   const data = await res.json();
 
   if (!data.length) {
@@ -1102,13 +1304,7 @@ async function fetchSuggestions(query) {
     return;
   }
 
-  // 🔥 AUTO SELECT if strong match
-  if (data.length === 1 || query.length > 5) {
-    selectParticipant(data[0].name, data[0].email, data[0].mobile);
-    return;
-  }
-
-  // otherwise show suggestions
+  // Show suggestions (no auto-select)
   box.innerHTML = data.map(p => `
     <div 
       onclick="selectParticipant('${p.name}','${p.email}','${p.mobile}')"

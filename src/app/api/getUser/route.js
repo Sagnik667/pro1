@@ -1,14 +1,13 @@
-import { supabase } from "../../../lib/supabase";
+import { supabase, requireAuth } from "../../../lib/supabase";
 
 export async function GET(req) {
   try {
-    const { searchParams } = new URL(req.url);
-    const userId = searchParams.get("userId");
+    const user = await requireAuth(req);
 
     const { data, error } = await supabase
       .from("users")
       .select("*")
-      .eq("id", userId)
+      .eq("id", user.id)
       .single();
 
     if (error) throw error;
@@ -18,7 +17,7 @@ export async function GET(req) {
   } catch (err) {
     return Response.json(
       { error: err.message },
-      { status: 500 }
+      { status: 401 }
     );
   }
 }

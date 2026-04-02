@@ -4,6 +4,21 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Online Meeting Scheduler</title>
+<style>
+:root {
+  --bg-color: white;
+  --text-color: #0f172a;
+  --border-color: #ccc;
+  --card-bg: rgba(255, 255, 255, 0.96);
+}
+
+body.dark {
+  --bg-color: #1a1a1a;
+  --text-color: #e5e7eb;
+  --border-color: #555;
+  --card-bg: rgba(3, 5, 9, 0.96);
+}
+</style>
 </head>
 
 <body class="light">
@@ -12,13 +27,21 @@
 </audio>
 
 <header class="topbar">
-  <div class="profile" title="Settings" onclick="showPage('settings')">👤</div>
+  <div class="profile" title="Settings" onclick="showPage('settings')">
+    <span style="display: flex; flex-direction: column; align-items: center; gap: 2px;">
+      <span>👤</span>
+      <span id="usernameDisplay" style="font-size: 9px; min-width: 30px; overflow: hidden; text-overflow: ellipsis;"></span>
+    </span>
+  </div>
 
   <nav>
     <a onclick="showPage('home')">Home</a>
     <a onclick="showPage('past')">Past Meetings</a>
     <a onclick="showPage('calendar')">Calendar View</a>
   </nav>
+
+  <div style="display: flex; align-items: center; gap: 10px;">
+    <button id="logoutBtn" onclick="logout()" style="background: #e74c3c; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 14px;">Logout</button>
 
   <label class="theme-switch">
     <input type="checkbox" class="theme-switch__checkbox">
@@ -40,6 +63,7 @@
       </div>
     </div>
   </label>
+  </div>
 </header>
 
 <!-- HOME -->
@@ -116,6 +140,25 @@
   <h2>Settings</h2>
 
   <div class="settings-box">
+    <h3>User Information</h3>
+
+    <label class="settings-row">
+      User ID
+      <input id="userId" type="text" readonly />
+    </label>
+
+    <label class="settings-row">
+      Username
+      <input id="userUsername" type="text" readonly />
+    </label>
+
+    <label class="settings-row">
+      Email
+      <input id="userEmail" type="email" readonly />
+    </label>
+  </div>
+
+  <div class="settings-box">
     <h3>Notifications</h3>
     <div class="settings-row checkbox-row">
       <input id="notifToggle" type="checkbox" checked onchange="toggleNotifications(this)">
@@ -162,6 +205,18 @@
   <p class="muted" style="margin-top:8px;font-size:13px;">
     Used when a meeting has no specific link.
   </p>
+</div>
+
+<div class="settings-box" style="border-top: 2px solid #ddd; margin-top: 2rem; padding-top: 2rem;">
+  <h3>Account Actions</h3>
+  
+  <button onclick="logout()" style="width: 100%; background: #f39c12; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px; margin-bottom: 8px;">
+    Logout
+  </button>
+
+  <button onclick="deleteAccountWarning()" style="width: 100%; background: #e74c3c; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; font-size: 14px;">
+    Delete Account
+  </button>
 </div>
 </section>
 
@@ -231,21 +286,30 @@
     <div class="modal-row">
       <h4>Participants</h4>
       
-      <input
-      id="pName"
-      type="text"
-      placeholder="Participant Name"
-      />
-      <div id="suggestionsBox" style="
-        background: white;
-        border: 1px solid #ccc;
-        max-height: 150px;
-        overflow-y: auto;
-        display: none;
-        position: relative;
-        z-index: 10;
-      "></div>
-
+      <div style="position: relative; width: 100%;">
+        <input
+          id="pName"
+          type="text"
+          placeholder="Participant Name"
+          style="width: 100%;"
+        />
+        <div id="suggestionsBox" style="
+          background: var(--card-bg);
+          color: var(--text-color);
+          border: 1px solid var(--border-color);
+          max-height: 150px;
+          overflow-y: auto;
+          display: none;
+          position: absolute;
+          top: 100%;
+          left: 0;
+          right: 0;
+          z-index: 100;
+          margin-top: 2px;
+          border-radius: 4px;
+          box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        "></div>
+      </div>
 
       <input
         id="pEmail"
@@ -253,11 +317,6 @@
         placeholder="Participant Email"
       />
 
-      <input
-        id="pMobile"
-        type="tel"
-        placeholder="Participant Mobile"
-      />
       
       <div style="display: flex; justify-content: center;">
         <button id="voiceBtn" class="voice-btn" onclick="startVoiceInput()">
