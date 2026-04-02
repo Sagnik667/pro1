@@ -881,6 +881,12 @@ body.dark .meeting-card .small-btn:not(.danger):hover {
   box-sizing: border-box;
 }
 
+.meeting-location {
+  color: #1f2937;
+  font-weight: 600;
+  text-align: center;
+}
+
 /* Dark mode: reduce input brightness */
 body.dark .modal-content input,
 body.dark .modal-content select {

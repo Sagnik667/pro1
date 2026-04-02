@@ -209,23 +209,30 @@ function createCardNode(m, start, end) {
   footer.appendChild(pri);
   footer.appendChild(st);
 
-  // --- Join button ONLY for future / ongoing meetings ---
+  // --- Join button / location indicator ONLY for future / ongoing meetings ---
   if (!isPast) {
-    const joinBtn = document.createElement('button');
-    joinBtn.className = 'join';
-    joinBtn.textContent = 'Join';
+    if (m.type === 'Offline') {
+      const locationText = document.createElement('span');
+      locationText.className = 'meeting-location';
+      locationText.textContent = m.link ? `Location: ${m.link}` : 'Location: (not specified)';
+      footer.appendChild(locationText);
+    } else {
+      const joinBtn = document.createElement('button');
+      joinBtn.className = 'join';
+      joinBtn.textContent = 'Join';
 
-    const link =
-      m.link ||
-      document.getElementById('defaultLink')?.value ||
-      'https://meet.google.com/new';
+      const link =
+        m.link ||
+        document.getElementById('defaultLink')?.value ||
+        'https://meet.google.com/new';
 
-    joinBtn.onclick = (e) => {
-      e.stopPropagation();
-      window.open(link, '_blank', 'noopener');
-    };
+      joinBtn.onclick = (e) => {
+        e.stopPropagation();
+        window.open(link, '_blank', 'noopener');
+      };
 
-    footer.appendChild(joinBtn);
+      footer.appendChild(joinBtn);
+    }
   }
 
   card.appendChild(footer);
@@ -385,6 +392,38 @@ function closeModal(){
   document.getElementById('modal').setAttribute('aria-hidden', 'true');
 }
 
+function setLinkProviderOptions(type){
+  const provider = document.getElementById('linkProvider');
+  if (!provider) return;
+
+  const onlineOpts = [
+    { value: 'none', text: 'No meeting link' },
+    { value: 'google', text: 'Google Meet (default)' },
+    { value: 'teams', text: 'Microsoft Teams (default)' },
+    { value: 'zoom', text: 'Zoom (default)' },
+    { value: 'custom', text: 'Custom link / location' },
+  ];
+
+  const offlineOpts = [
+    { value: 'none', text: 'No location' },
+    { value: 'custom', text: 'Custom location' },
+  ];
+
+  const opts = type === 'Offline' ? offlineOpts : onlineOpts;
+
+  // preserve previous custom if still valid
+  const previousValue = provider.value;
+  provider.innerHTML = opts.map(o => `<option value="${o.value}">${o.text}</option>`).join('');
+
+  if (opts.some(o => o.value === previousValue)) {
+    provider.value = previousValue;
+  } else {
+    provider.value = 'none';
+  }
+
+  onLinkProviderChange(provider);
+}
+
 function clearForm(){
   // Reset only the form fields — do NOT reset participants here.
   ['title','date','start','end','type','importance','linkProvider','customLink','reminder','recurrence'].forEach(id=>{
@@ -406,19 +445,35 @@ function clearForm(){
   if (rec) rec.value = 'none';
   const typeEl = document.getElementById('type');
   if (typeEl) typeEl.value = 'Online';
+  setLinkProviderOptions('Online');
 }
 
 function onLinkProviderChange(select){
   const customRow = document.getElementById('customLinkRow');
   if (!customRow) return;
-  if (select.value === 'custom') {
-    customRow.style.display = 'block';
-    document.getElementById('customLink').focus();
+
+  const isCustom = select.value === 'custom';
+  customRow.style.display = isCustom ? 'block' : 'none';
+
+  const customInput = document.getElementById('customLink');
+  if (!customInput) return;
+
+  const type = document.getElementById('type')?.value;
+  if (type === 'Offline') {
+    customInput.placeholder = 'Location (optional)';
   } else {
-    customRow.style.display = 'none';
+    customInput.placeholder = 'Custom meeting link (required when choosing Custom)';
+  }
+
+  if (isCustom) {
+    customInput.focus();
   }
 }
 
+function updateMeetingType(select){
+  const type = select.value;
+  setLinkProviderOptions(type);
+}
 
 function saveMeeting(){
   const id = document.getElementById('saveBtn').dataset.editId;
@@ -437,12 +492,22 @@ function saveMeeting(){
   if (end <= start) { alert('End time must be after start time'); return; }
 
   let link = '';
-  if (linkProvider === 'google') link = 'https://meet.google.com/new';
-  else if (linkProvider === 'teams') link = 'https://teams.microsoft.com/l/meetup-join';
-  else if (linkProvider === 'zoom') link = 'https://zoom.us/j/new';
-  else if (linkProvider === 'custom') {
-    if (!customLink) { alert('Please provide a custom meeting link.'); return; }
-    link = customLink;
+
+  if (type === 'Online') {
+    if (linkProvider === 'google') link = 'https://meet.google.com/new';
+    else if (linkProvider === 'teams') link = 'https://teams.microsoft.com/l/meetup-join';
+    else if (linkProvider === 'zoom') link = 'https://zoom.us/j/new';
+    else if (linkProvider === 'custom') {
+      if (!customLink) { alert('Please provide a custom meeting link.'); return; }
+      link = customLink;
+    }
+  } else {
+    // For Offline meetings, use location text stored in the same field
+    if (linkProvider === 'custom') {
+      link = customLink;
+    } else {
+      link = '';
+    }
   }
 
   const payload = {
@@ -645,7 +710,9 @@ async function openEditModal(id){
   document.getElementById('date').value = m.date;
   document.getElementById('start').value = m.start;
   document.getElementById('end').value = m.end;
-  document.getElementById('type').value = m.type || 'Online';
+  const typeVal = m.type || 'Online';
+  document.getElementById('type').value = typeVal;
+  setLinkProviderOptions(typeVal);
   document.getElementById('importance').value = m.importance || 'Medium';
 
   const providerEl = document.getElementById('linkProvider');
@@ -766,7 +833,8 @@ function openDayModal(dateInput) {
 
           <div style="display:flex;flex-direction:column;gap:6px;">
             ${!isPast ? `<button class="small-btn" onclick="openEditModal('${m.id}')">Edit</button>` : ``}
-            ${!isPast ? `<button class="small-btn" onclick="window.open('${m.link || document.getElementById('defaultLink').value || 'https://meet.google.com/new'}','_blank')">Join</button>` : ``}
+            ${!isPast && m.type !== 'Offline' ? `<button class="small-btn" onclick="window.open('${m.link || document.getElementById('defaultLink').value || 'https://meet.google.com/new'}','_blank')">Join</button>` : ``}
+            ${!isPast && m.type === 'Offline' ? `<span class="meeting-location">Location: ${m.link || '(not specified)'}</span>` : ``}
             <button class="small-btn" style="border-color:#ef4444;color:#ef4444;" onclick="deleteMeeting('${m.id}')">Delete</button>
           </div>
         </div>
