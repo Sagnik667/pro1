@@ -321,25 +321,21 @@ function renderCalendar(month, year){
     const dayStart = startOfDay(date), dayEnd = endOfDay(date);
     const dayOccs = occs.filter(o => o.start >= dayStart && o.start <= dayEnd);
     if (dayOccs.length){
-      const markers = document.createElement('div');
-      markers.style.position = 'absolute';
-      markers.style.right = '8px';
-      markers.style.top = '8px';
-      markers.style.display = 'flex';
-      markers.style.flexDirection = 'column';
-      markers.style.gap = '6px';
-      dayOccs.slice(0, 3).forEach(o => {
-        const dot = document.createElement('div');
-        dot.style.width = '10px'; dot.style.height = '10px'; dot.style.borderRadius = '50%';
-        if (o.m.importance === 'High') dot.style.background = 'var(--high)';
-        else if (o.m.importance === 'Medium') dot.style.background = 'var(--med)';
-        else dot.style.background = 'var(--low)';
-        markers.appendChild(dot);
+      const counts = { Low:0, Medium:0, High:0 };
+      dayOccs.forEach(o => {
+        const level = (o.m.importance || 'Medium');
+        if (counts[level] !== undefined) counts[level]++;
       });
-      if (dayOccs.length > 3) {
-        const more = document.createElement('div'); more.textContent = `+${dayOccs.length - 3}`; more.style.fontSize = '12px'; markers.appendChild(more);
-      }
-      dayCell.appendChild(markers);
+
+      const summary = document.createElement('div');
+      summary.className = 'importance-summary';
+      summary.innerHTML = `
+        <span><span class="imp-dot low"></span>${counts.Low}</span>
+        <span><span class="imp-dot medium"></span>${counts.Medium}</span>
+        <span><span class="imp-dot high"></span>${counts.High}</span>
+      `;
+
+      dayCell.appendChild(summary);
     }
 
     // Make the date clickable — pass epoch ms to keep local-midnight exactness
@@ -391,12 +387,15 @@ function closeModal(){
 
 function clearForm(){
   // Reset only the form fields — do NOT reset participants here.
-  ['title','date','start','end','type','importance','link','reminder','recurrence'].forEach(id=>{
+  ['title','date','start','end','type','importance','linkProvider','customLink','reminder','recurrence'].forEach(id=>{
     const el = document.getElementById(id);
     if (!el) return;
     if (el.tagName === 'SELECT') el.selectedIndex = 0;
     else el.value = '';
   });
+
+  const customRow = document.getElementById('customLinkRow');
+  if (customRow) customRow.style.display = 'none';
 
   // sensible defaults
   const imp = document.getElementById('importance');
@@ -409,6 +408,17 @@ function clearForm(){
   if (typeEl) typeEl.value = 'Online';
 }
 
+function onLinkProviderChange(select){
+  const customRow = document.getElementById('customLinkRow');
+  if (!customRow) return;
+  if (select.value === 'custom') {
+    customRow.style.display = 'block';
+    document.getElementById('customLink').focus();
+  } else {
+    customRow.style.display = 'none';
+  }
+}
+
 
 function saveMeeting(){
   const id = document.getElementById('saveBtn').dataset.editId;
@@ -418,15 +428,34 @@ function saveMeeting(){
   const end = document.getElementById('end').value;
   const type = document.getElementById('type').value;
   const importance = document.getElementById('importance').value;
-  const link = document.getElementById('link').value.trim();
+  const linkProvider = document.getElementById('linkProvider').value;
+  const customLink = document.getElementById('customLink').value.trim();
   const reminder = Number(document.getElementById('reminder').value || 10);
   const recurrence = document.getElementById('recurrence').value || 'none';
 
   if (!title || !date || !start || !end) { alert('Please provide title, date, start and end times.'); return; }
   if (end <= start) { alert('End time must be after start time'); return; }
 
+  let link = '';
+  if (linkProvider === 'google') link = 'https://meet.google.com/new';
+  else if (linkProvider === 'teams') link = 'https://teams.microsoft.com/l/meetup-join';
+  else if (linkProvider === 'zoom') link = 'https://zoom.us/j/new';
+  else if (linkProvider === 'custom') {
+    if (!customLink) { alert('Please provide a custom meeting link.'); return; }
+    link = customLink;
+  }
+
   const payload = {
-    title, date, start, end, type, importance, link, reminder, recurrence
+    title,
+    date,
+    start,
+    end,
+    type,
+    importance,
+    linkProvider,
+    link,
+    reminder,
+    recurrence
   };
 
   if (id) updateMeeting(id, payload);
@@ -486,6 +515,7 @@ saveBtn.textContent = 'Saving...';
     startTime: payload.date + "T" + payload.start + ":00",
     endTime: payload.end ? payload.date + "T" + payload.end + ":00" : null,
     meetingLink: payload.link || null,
+    meetingProvider: payload.linkProvider || null,
     reminderMinutes: payload.reminder || 10,
     importance: payload.importance || "Medium",
     recurrence: payload.recurrence || "none"
@@ -571,6 +601,7 @@ function updateMeeting(id, payload){
       ? new Date(payload.date + "T" + payload.end).toISOString()
       : null,
     meetingLink: payload.link || "",
+    meetingProvider: payload.linkProvider || null,
     reminderMinutes: payload.reminder || 10,
     notified: false   // reset notification on edit
   };
@@ -616,7 +647,36 @@ async function openEditModal(id){
   document.getElementById('end').value = m.end;
   document.getElementById('type').value = m.type || 'Online';
   document.getElementById('importance').value = m.importance || 'Medium';
-  document.getElementById('link').value = m.link || '';
+
+  const providerEl = document.getElementById('linkProvider');
+  const customEl = document.getElementById('customLink');
+  if (m.linkProvider) {
+    providerEl.value = m.linkProvider;
+    if (m.linkProvider === 'custom') {
+      customEl.value = m.link || '';
+    } else {
+      customEl.value = '';
+    }
+  } else if (m.link) {
+    if (m.link.startsWith('https://meet.google.com/')) {
+      providerEl.value = 'google';
+      customEl.value = '';
+    } else if (m.link.startsWith('https://teams.microsoft.com/')) {
+      providerEl.value = 'teams';
+      customEl.value = '';
+    } else if (m.link.startsWith('https://zoom.us/')) {
+      providerEl.value = 'zoom';
+      customEl.value = '';
+    } else {
+      providerEl.value = 'custom';
+      customEl.value = m.link;
+    }
+  } else {
+    providerEl.value = 'none';
+    customEl.value = '';
+  }
+  onLinkProviderChange(providerEl);
+
   document.getElementById('reminder').value = String(m.reminder || 10);
   document.getElementById('recurrence').value = m.recurrence || 'none';
   document.getElementById('saveBtn').dataset.editId = id;

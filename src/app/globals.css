@@ -875,7 +875,7 @@ body.dark .meeting-card .small-btn:not(.danger):hover {
   max-width: 100%;
   padding: 12px 14px;
   font-size: 15px;
-  border-radius: 12px;
+  border-radius: 16px; /* fully curved corners */
   border: 1px solid #e6eef8;
   background: white;
   box-sizing: border-box;
@@ -968,6 +968,37 @@ body.dark .modal-content {
   will-change: transform;
   overflow: hidden;
 }
+
+.importance-summary {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  bottom: 8px;
+  display: flex;
+  justify-content: space-around;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1;
+  color: #ffffff;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.4);
+}
+
+.importance-summary span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.imp-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.imp-dot.low { background: var(--low); }
+.imp-dot.medium { background: var(--med); }
+.imp-dot.high { background: var(--high); }
 
 .calendar-day::before {
   content: '';

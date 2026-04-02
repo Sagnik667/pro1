@@ -197,7 +197,17 @@
     </div>
 
     <div class="modal-row">
-      <input id="link" placeholder="Meeting Link (optional)" />
+      <select id="linkProvider" onchange="onLinkProviderChange(this)">
+        <option value="none" selected>No meeting link</option>
+        <option value="google">Google Meet (default)</option>
+        <option value="teams">Microsoft Teams (default)</option>
+        <option value="zoom">Zoom (default)</option>
+        <option value="custom">Custom link</option>
+      </select>
+    </div>
+
+    <div class="modal-row" id="customLinkRow" style="display:none;">
+      <input id="customLink" type="url" placeholder="Custom meeting link (required when choosing Custom)" />
     </div>
 
     <div class="modal-row two">
